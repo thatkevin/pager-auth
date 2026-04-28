@@ -1,20 +1,19 @@
 /**
- * Pager auth worker — CORS proxy for GitHub OAuth device flow.
+ * pager-auth — GitHub App OAuth exchange worker.
  *
- * Required env var: GITHUB_CLIENT_ID
- * Set via: wrangler secret put GITHUB_CLIENT_ID  (or wrangler.toml [vars] for non-secret)
+ * Required env vars:
+ *   GITHUB_CLIENT_ID     — GitHub App client ID
+ *   GITHUB_CLIENT_SECRET — GitHub App client secret
  *
  * Routes:
- *   POST /device/code  → https://github.com/login/device/code
- *   POST /token        → https://github.com/login/oauth/access_token
+ *   POST /exchange  → exchanges an OAuth code for a user access token
  */
 
-const GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code';
-const GITHUB_TOKEN_URL       = 'https://github.com/login/oauth/access_token';
+const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 
 const ALLOWED_ORIGINS = new Set([
   'https://pager.kev.cc',
-  'http://localhost:8080',  // local dev
+  'http://localhost:8080',
   'http://127.0.0.1:8080',
 ]);
 
@@ -48,22 +47,16 @@ export default {
       return new Response('Method not allowed', { status: 405 });
     }
 
-    if (!env.GITHUB_CLIENT_ID) {
-      return jsonResponse({ error: 'Worker not configured: missing GITHUB_CLIENT_ID' }, 500, origin);
+    if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+      return jsonResponse({ error: 'Worker not configured: missing credentials' }, 500, origin);
     }
 
     const url = new URL(request.url);
-    let targetUrl;
 
-    if (url.pathname === '/device/code') {
-      targetUrl = GITHUB_DEVICE_CODE_URL;
-    } else if (url.pathname === '/token') {
-      targetUrl = GITHUB_TOKEN_URL;
-    } else {
+    if (url.pathname !== '/exchange') {
       return new Response('Not found', { status: 404 });
     }
 
-    // Read body and inject client_id — never let the client supply it
     let body;
     try {
       body = await request.text();
@@ -72,26 +65,37 @@ export default {
     }
 
     const params = new URLSearchParams(body);
-    params.delete('client_id');     // prevent client overriding it
-    params.delete('client_secret'); // never allow secret forwarding
-    params.set('client_id', env.GITHUB_CLIENT_ID);
+    const code   = params.get('code');
+
+    if (!code) {
+      return jsonResponse({ error: 'Missing code' }, 400, origin);
+    }
 
     let ghRes;
     try {
-      ghRes = await fetch(targetUrl, {
+      ghRes = await fetch(GITHUB_TOKEN_URL, {
         method:  'POST',
         headers: {
           'Accept':       'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
           'User-Agent':   'pager-auth-worker/1.0',
         },
-        body: params.toString(),
+        body: new URLSearchParams({
+          client_id:     env.GITHUB_CLIENT_ID,
+          client_secret: env.GITHUB_CLIENT_SECRET,
+          code,
+        }).toString(),
       });
-    } catch (e) {
+    } catch {
       return jsonResponse({ error: 'GitHub unreachable' }, 502, origin);
     }
 
     const data = await ghRes.json();
-    return jsonResponse(data, ghRes.status, origin);
+
+    if (data.error) {
+      return jsonResponse({ error: data.error_description || data.error }, 400, origin);
+    }
+
+    return jsonResponse({ token: data.access_token }, 200, origin);
   },
 };
