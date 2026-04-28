@@ -3,7 +3,9 @@ main               = "index.js"
 compatibility_date = "2024-09-23"
 
 [vars]
-GITHUB_CLIENT_ID = "Ov23likIP5P2MhK4fp59"
+# GitHub App client ID (not a secret — safe to commit).
+# Fill in after creating the GitHub App at github.com/settings/apps.
+GITHUB_CLIENT_ID = ""
 
-# GITHUB_CLIENT_SECRET must be added as a secret 
-# either in Cloudflare dashboard or as a wrangler secret
+# GITHUB_CLIENT_SECRET must be added as a secret in the Cloudflare dashboard
+# (Settings → Secrets) so it is never committed to the repo.
