@@ -1,11 +1,9 @@
-name            = "pager-auth"
-main            = "index.js"
+name               = "pager-auth"
+main               = "index.js"
 compatibility_date = "2024-09-23"
 
-# GITHUB_CLIENT_ID is the OAuth App client ID (not a secret — it's public).
-# Set it either here or via: wrangler secret put GITHUB_CLIENT_ID
-# [vars]
-# GITHUB_CLIENT_ID = "your_client_id_here"
+[vars]
+GITHUB_CLIENT_ID = "Ov23likIP5P2MhK4fp59"
 
-# Deployment: wrangler deploy (from the worker/ directory)
-# Then bind the route in the Cloudflare dashboard or add a route here.
+# GITHUB_CLIENT_SECRET must be added as a secret 
+# either in Cloudflare dashboard or as a wrangler secret
